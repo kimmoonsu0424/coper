@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+ <meta name="theme-color" content="#101d22"><meta name="description" content="블수구를 피해 파밍하고 집을 지어 101일을 살아남는 생존게임. PC와 휴대폰 가로모드 지원.">
+ <title>아포칼립스에서 살아남기 — 블수구한테서 도망쳐라</title>
+ <link rel="stylesheet" href="style.css">
+</head>
+<body>
+ <canvas id="world" aria-label="생존게임 맵"></canvas>
+ <div id="vignette"></div>
+ <header id="hud" class="hidden">
+  <div class="daybox"><span class="eyebrow">SURVIVAL LOG</span><div><b id="day">001</b><span>일째</span></div><small id="clock">06:00 · 낮</small></div>
+  <div class="vitals">
+   <div class="stat"><span>체력</span><div class="track"><i id="hpbar"></i></div><b id="hp">100</b></div>
+   <div class="stat food"><span>허기</span><div class="track"><i id="hungerbar"></i></div><b id="hunger">100</b></div>
+   <div class="stat water"><span>수분</span><div class="track"><i id="thirstbar"></i></div><b id="thirst">100</b></div>
+   <div class="stat stamina"><span>기력</span><div class="track"><i id="staminabar"></i></div><b id="stamina">100</b></div>
+  </div>
+  <div class="topright"><button id="mapBtn" title="지도 M">지도 <kbd>M</kbd></button><button id="pauseBtn" title="일시정지 Esc">Ⅱ <span>메뉴</span></button></div>
+ </header>
+ <div id="mission" class="hidden"><span class="diamond">◇</span><div><small>현재 목표</small><b id="objective">오두막을 건설하세요</b></div></div>
+ <div id="utility" class="hidden"><button id="equipmentBtn">장비</button><button id="houseBtn">집 출입</button><button id="decorateBtn" class="hidden">집 꾸미기</button><button id="rankBtn">랭킹</button><span id="connectionLabel"></span></div><div id="sleepOverlay" class="hidden"><strong>침대에서 쉬는 중</strong><span id="sleepCountdown">12.0초</span><progress id="sleepProgress" max="12" value="0"></progress><small id="sleepHint">이동하거나 취소하면 깨어납니다.</small><button id="wakeBtn">수면 취소</button></div><div id="zone" class="hidden">첫 번째 피난처</div>
+ <div id="toast" role="status" aria-live="polite"></div>
+ <div id="prompt" class="hidden"></div>
+ <div id="buildPlacement" class="hidden"><span id="buildText"></span><button id="placeBtn">여기에 설치</button><button id="cancelBuild">취소</button></div>
+ <footer id="bottom" class="hidden">
+  <div class="resources"><span>목재 <b id="wood">8</b></span><span>돌 <b id="stone">5</b></span><span>고철 <b id="scrap">2</b></span><span>코인 <b id="coinCount">0</b></span></div>
+  <div class="hotbar"><button id="eatBtn"><kbd>1</kbd><span>식량</span><b id="foodCount">6</b></button><button id="drinkBtn"><kbd>2</kbd><span>물</span><b id="waterCount">6</b></button><button id="healBtn"><kbd>3</kbd><span>구급약</span><b id="medCount">2</b></button><button id="craftBtn" class="build"><kbd>B</kbd><span>제작 · 건설</span></button><button id="sleepBtn"><kbd>R</kbd><span>침대</span></button></div>
+  <div class="desktopHelp">WASD 이동 · Shift 달리기 · E 채집 · Space 공격</div>
+ </footer>
+ <div id="touch" class="hidden"><div id="joystick"><div id="stick"></div><span>이동</span></div><div class="actions"><button id="runTouch">달리기</button><button id="gatherTouch">채집<br><small>상호작용</small></button><button id="attackTouch">공격</button></div></div>
+ <div id="rotate"><div class="rotateIcon">↻</div><h2>휴대폰을 가로로 돌려주세요</h2><p>더 넓은 시야로 블수구를 피하세요.<br>화면을 돌리는 동안 게임은 멈춥니다.</p></div>
+ <main id="start" class="overlay">
+  <div class="startPanel"><div class="kicker"><i></i> SURVIVAL TOGETHER · EDITION 02</div><h1>아포칼립스에서<br><em>살아남기</em></h1><h2>블수구한테서 도망쳐라</h2><p class="intro">낮에는 파밍. 밤에는 생존.<br>나만의 집을 짓고, 101번째 아침을 맞이하세요.</p><label class="nicknameLabel">생존자 닉네임 <input id="nickname" maxlength="12" placeholder="닉네임을 정해주세요" autocomplete="nickname" value="생존자"></label><div class="startActions"><button id="continueBtn" class="primary hidden">이어하기 <span>→</span></button><button id="newBtn" class="primary">새로운 생존 시작 <span>→</span></button></div><div class="onlineStart"><button id="onlineBtn">협동 플레이 · 최대 4인</button><button id="startRank">생존 랭킹</button></div><div class="startOptions"><label>난이도 <select id="difficulty"><option value="easy">탐험가 · 여유롭게</option><option value="normal" selected>생존자 · 기본</option><option value="hard">극한 · 도전</option></select></label><button id="startHelp">생존 가이드</button></div><div class="platform">PC & MOBILE <span>·</span> 싱글 · 4인 협동 <span>·</span> 자동 저장</div></div>
+  <div class="startStamp"><strong>101</strong><span>DAYS TO SURVIVE</span><small>폐허 외곽 · 격리 구역 07</small></div>
+ </main>
+ <section id="dialog" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><div class="panel"><div class="panelHead"><div><small id="dialogKicker">FIELD MANUAL</small><h2 id="dialogTitle">생존 가이드</h2></div><button id="closeDialog" aria-label="닫기">✕</button></div><div id="dialogBody"></div></div></section>
+ <input id="importFile" type="file" accept="application/json,.json" hidden>
+ <script src="engine.js"></script><script src="expansion.js"></script><script src="network.js"></script><script src="game.js"></script>
+</body></html>

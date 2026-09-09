@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: blsugu-survival-coop
+    runtime: node
+    plan: starter
+    buildCommand: node --check server/server.js
+    startCommand: node server/server.js
+    healthCheckPath: /health
+    disk:
+      name: survival-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: MAX_ROOMS
+        value: 20
