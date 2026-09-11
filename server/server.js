@@ -24,6 +24,7 @@ function action(r,a,c){if(!c||!commands.has(c.op))return;if(a.dead&&c.op!=='rank
  });touch();}
 const DUEL_ROUND=180,DUEL_MAX_QUEUE=200,DUEL_QUEUE_TTL=45000,DUEL_PENDING_TTL=15000,DUEL_ROOM_TTL=600000;
 const DUEL_W=1200,DUEL_H=800,DUEL_STATS={survivor:{hp:100,speed:168,range:52,damage:16,cool:.5,r:16},monster:{hp:150,speed:184,range:56,damage:20,cool:.55,r:18}};
+const DUEL_VISION={survivor:{close:90,range:430,cone:.80,sound:320},monster:{close:100,range:520,cone:1.0,sound:210}};
 function duelKey(req,nickname){return hash((req.socket.remoteAddress||'')+'|'+nickname);}
 function duelRank(id,nickname,won){let row=duelRanks.get(id)||{id,nickname,wins:0,losses:0,streak:0,updated:0};row.nickname=nickname;if(won){row.wins++;row.streak=Math.max(0,row.streak)+1;}else{row.losses++;row.streak=Math.min(0,row.streak)-1;}row.updated=stamp();duelRanks.set(id,row);touch();return row;}
 function duelCode(){let code;do{code=crypto.randomBytes(4).toString('hex').slice(0,6).toUpperCase();}while(duelRooms.has(code));return code;}
@@ -33,6 +34,8 @@ function duelPlayer(nickname,tokenHash,rankKey){return{id:crypto.randomUUID(),to
 function duelRng(seedHex){let t=parseInt(seedHex.slice(0,8),16)>>>0||1;return()=>{t+=0x6D2B79F5;let x=Math.imul(t^t>>>15,t|1);x^=x+Math.imul(x^x>>>7,x|61);return((x^x>>>14)>>>0)/4294967296;};}
 function duelObstacles(seedHex){let rnd=duelRng(seedHex),list=[];for(let i=0;i<6;i++){let w=70+rnd()*90,h=70+rnd()*90,x=140+rnd()*(DUEL_W-280-w),y=140+rnd()*(DUEL_H-280-h);list.push({x,y,w,h});}return list;}
 function duelBlocked(r,x,y,rad){if(x<rad||y<rad||x>DUEL_W-rad||y>DUEL_H-rad)return true;return r.obstacles.some(o=>x>o.x-rad&&x<o.x+o.w+rad&&y>o.y-rad&&y<o.y+o.h+rad);}
+function duelSegBlocked(r,x1,y1,x2,y2){let steps=14;for(let i=1;i<steps;i++){let t=i/steps,x=x1+(x2-x1)*t,y=y1+(y2-y1)*t;if(r.obstacles.some(o=>x>o.x&&x<o.x+o.w&&y>o.y&&y<o.y+o.h))return true;}return false;}
+function duelCanSee(r,observer,obsAngle,target,role){let v=DUEL_VISION[role],dx=target.x-observer.x,dy=target.y-observer.y,d=Math.hypot(dx,dy);if(d<=v.close)return true;if(d>v.range)return false;let ang=Math.atan2(dy,dx),diff=Math.abs(Math.atan2(Math.sin(ang-obsAngle),Math.cos(ang-obsAngle)));if(diff>v.cone)return false;return!duelSegBlocked(r,observer.x,observer.y,target.x,target.y);}
 function duelSpawn(r){r.obstacles=duelObstacles(r.map);r.startedAt=stamp();r.winner=null;r.ranked=false;for(let p of r.players){let s=DUEL_STATS[p.role];p.p={x:p.role==='survivor'?110:DUEL_W-110,y:p.role==='survivor'?DUEL_H-110:110,hp:s.hp,maxHp:s.hp,angle:0,cool:0,special:0,specialClock:0,hurt:0};p.ready=false;p.wantsRematch=false;p.input={};}}
 function duelTick(r,dt){
  if(r.state!=='playing')return;let[a,b]=r.players;if(!a||!b)return;
@@ -51,7 +54,19 @@ function duelTick(r,dt){
  if(r.state==='complete'&&!r.ranked){r.ranked=true;let elapsed=stamp()-r.startedAt;if(elapsed>=10000)for(let p of r.players)duelRank(p.rankKey,p.nickname,p.role===r.winner);}
 }
 function clampV(v,a,b){return Math.max(a,Math.min(b,v));}
-function duelView(r,me){let opp=r.players.find(p=>p.id!==me.id);let world=r.state==='lobby'?null:{w:DUEL_W,h:DUEL_H,obstacles:r.obstacles,timeLeft:r.state==='playing'?Math.max(0,DUEL_ROUND-(stamp()-r.startedAt)/1000):0,me:me.p,opp:opp?opp.p:null};return{protocol:1,room:r.code,map:r.map,id:me.id,role:me.role,ready:me.ready,wantsRematch:me.wantsRematch,state:r.state,duration:DUEL_ROUND,winner:r.winner,world,opponent:opp?{nickname:opp.nickname,role:opp.role,ready:opp.ready,wantsRematch:opp.wantsRematch,connected:opp.connected&&stamp()-opp.lastSeen<8000}:null,serverTime:stamp()};}
+function duelView(r,me){
+ let opp=r.players.find(p=>p.id!==me.id),world=null;
+ if(r.state!=='lobby'){
+  let oppData=null,heard=null;
+  if(opp){
+   let reveal=r.state==='complete'||duelCanSee(r,me.p,me.p.angle,opp.p,me.role);
+   if(reveal)oppData={x:opp.p.x,y:opp.p.y,hp:opp.p.hp,maxHp:opp.p.maxHp,angle:opp.p.angle,hurt:opp.p.hurt};
+   else{let i=opp.input||{},loud=i.attack===true||Math.hypot(Number(i.x)||0,Number(i.y)||0)>.3,d=Math.hypot(opp.p.x-me.p.x,opp.p.y-me.p.y);if(loud&&d<=DUEL_VISION[me.role].sound)heard={dir:Math.atan2(opp.p.y-me.p.y,opp.p.x-me.p.x),dist:d};}
+  }
+  world={w:DUEL_W,h:DUEL_H,obstacles:r.obstacles,timeLeft:r.state==='playing'?Math.max(0,DUEL_ROUND-(stamp()-r.startedAt)/1000):0,me:me.p,opp:oppData,heard,vision:DUEL_VISION[me.role]};
+ }
+ return{protocol:1,room:r.code,map:r.map,id:me.id,role:me.role,ready:me.ready,wantsRematch:me.wantsRematch,state:r.state,duration:DUEL_ROUND,winner:r.winner,world,opponent:opp?{nickname:opp.nickname,role:opp.role,ready:opp.ready,wantsRematch:opp.wantsRematch,connected:opp.connected&&stamp()-opp.lastSeen<8000}:null,serverTime:stamp()};
+}
 function duelAuth(req){let token=(req.headers.authorization||'').replace(/^Bearer /,'');let s=token.length===43?duelSessions.get(hash(token)):null;if(!s||!duelRooms.has(s.room.code))throw Object.assign(Error('듀얼 연결이 만료되었습니다.'),{status:401});return s;}
 function duelCleanup(){let now=stamp();for(let i=duelQueue.length-1;i>=0;i--)if(now-duelQueue[i].joinedAt>DUEL_QUEUE_TTL)duelQueue.splice(i,1);for(let[token,p]of duelPending)if(now-p.at>DUEL_PENDING_TTL)duelPending.delete(token);for(let[code,r]of duelRooms)if(now-r.updated>DUEL_ROOM_TTL||r.players.every(p=>!p.connected))duelRooms.delete(code);}
 const server=http.createServer(async(req,res)=>{let origin=req.headers.origin||'';if(origin&&allowed.length&&!allowed.includes(origin)){respond(req,res,403,{error:'허용되지 않은 게임 주소입니다.'});return;}res.setHeader('Access-Control-Allow-Origin',origin||'*');res.setHeader('Vary','Origin, Accept-Encoding');res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('X-Content-Type-Options','nosniff');if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}
